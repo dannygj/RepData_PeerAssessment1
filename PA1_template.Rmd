@@ -2,19 +2,148 @@
 
 
 ## Loading and preprocessing the data
+Note: Formated the variable "date" as a date using the as.Date function.
 
-
+```{r}
+activity<-read.csv("activity.csv", stringsAsFactors=FALSE)
+activity$date<-as.Date(activity$date,"%Y-%m-%d")
+str(activity)
+```
 
 ## What is mean total number of steps taken per day?
 
+Prepping summary data for plotting a histogram. 
 
+```{r}
+stepsbyday<-as.data.frame(tapply(activity$steps, activity$date, sum))
+names(stepsbyday)<-"steps"
+```
+
+Plotting the histogram. 
+```{r}
+hist(stepsbyday$steps, main="Distribution of number of Steps each day", xlab="Number of Steps")
+```
+
+Calculing the mean and median steps per day.
+```{r}
+mean(stepsbyday$steps,na.rm=TRUE)
+median(stepsbyday$steps,na.rm=TRUE)
+```
 
 ## What is the average daily activity pattern?
 
+Prepping the data to plot.
+```{r}
+stepsbyinterval<-as.data.frame(tapply(activity$steps,activity$interval,mean,na.rm=TRUE))
+names(stepsbyinterval)<-"averageSteps"
+stepsbyinterval$interval=rownames(stepsbyinterval)
+```
 
+Plotting the data.
+```{r}
+plot(stepsbyinterval$interval,stepsbyinterval$averageSteps,type="l",xlab="Time",ylab="Average Number of Steps",main="Daily step Trend")
+```
+
+Finding the interval with the highest average steps across all days.
+
+```{r}
+stepsbyinterval[stepsbyinterval$averageSteps==max(stepsbyinterval$averageSteps),2]
+```
+
+835 is the interval with the highest average steps across all days.
 
 ## Imputing missing values
 
+Calculating total number of NAs.
 
+```{r}
+sum(is.na(activity$steps))
+```
+
+Creating a new dataset with the NAs filled in with the average number of steps for that interval. 
+
+```{r}
+activity2<-as.data.frame(cbind(activity$steps,activity$interval))
+names(activity2)=c("steps","interval")
+activity2$number<-1:17568
+activity2<-merge(stepsbyinterval, activity2,sort=FALSE)
+activity2<-activity2[order(activity2$number),]
+
+for(i in seq_len(nrow(activity2))) {
+        if(is.na(activity2[i,3])==TRUE){
+                activity2[i,3]=activity2[i,2]    
+        }
+}
+
+rownames(activity2)=activity2$number
+activity2$date=activity$date
+
+head(activity2)
+```
+
+Plotting the histogram for the imputed data. 
+```{r}
+stepsbyday2<-as.data.frame(tapply(activity2$steps, activity2$date, sum))
+names(stepsbyday2)<-"steps"
+hist(stepsbyday2$steps, main="Distribution of number of Steps each day", xlab="Number of Steps")
+```
+
+Calculing the mean and median steps per day for the imputed data.
+```{r}
+mean(stepsbyday2$steps)
+median(stepsbyday2$steps)
+```
+
+The mean and median values as well as the distribution of the steps per day of the imputed data differ vary little from the original data. Therfore, there is little impact from imputing missing data on the estimates of the total daily number of steps using the method I devised.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Adding a variable that identifies data as weekend or weekday.
+
+```{r}
+activity2$day<-weekdays(activity2$date)
+activity2$daytype<-1
+for(i in seq_len(nrow(activity2))) {
+        if(activity2[i,6]=="Saturday"|activity2[i,6]=="Sunday"){
+                activity2[i,7]="Weekend"
+        }
+        else{
+                activity2[i,7]="Weekday"
+        }
+        
+}
+```
+
+creating data to plot steps by weekend and weekday. 
+
+```{r}
+weekdays<-subset(activity2,activity2$daytype=="Weekday")
+weekends<-subset(activity2,activity2$daytype=="Weekend")
+
+a<-as.data.frame(tapply(weekdays$steps,weekdays$interval,mean,na.rm=TRUE))
+names(a)<-"averageSteps"
+a$averageSteps=as.numeric(a$averageSteps)
+a$interval=rownames(a)
+a$interval=as.numeric(as.character(a$interval))
+a$daytype="Weekday"
+a<-a[order(a$interval),]
+
+b<-as.data.frame(tapply(weekends$steps,weekends$interval,mean,na.rm=TRUE))
+names(b)<-"averageSteps"
+b$averageSteps=as.numeric(b$averageSteps)
+b$interval=rownames(b)
+b$interval=as.numeric(as.character(b$interval))
+b$daytype="Weekend"
+b<-b[order(b$interval),]
+
+c<-rbind(a,b)
+c<-transform(c,daytype=factor(daytype))
+```
+
+Plotting steps by weekday and weekend.
+
+```{r}
+library(lattice)
+
+xyplot(averageSteps~interval|daytype,data=c,layout=c(1,2),type="l")
+```
